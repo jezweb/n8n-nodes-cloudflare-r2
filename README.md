@@ -1,6 +1,6 @@
 # n8n-nodes-cloudflare-r2
 
-[![npm version](https://badge.fury.io/js/%40jezweb%2Fn8n-nodes-cloudflare-r2.svg)](https://www.npmjs.com/package/@jezweb/n8n-nodes-cloudflare-r2)
+[![npm version](https://badge.fury.io/js/n8n-nodes-cloudflare-r2-storage.svg)](https://www.npmjs.com/package/n8n-nodes-cloudflare-r2-storage)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An n8n community node for seamless integration with **Cloudflare R2 Object Storage**. Upload, download, manage files and buckets with zero egress fees. Includes batch operations, CORS management, and full AI Agent compatibility.
@@ -21,7 +21,7 @@ An n8n community node for seamless integration with **Cloudflare R2 Object Stora
 ### Via n8n Community Nodes (Recommended)
 
 1. Go to **Settings** → **Community Nodes** in your n8n instance
-2. Enter `@jezweb/n8n-nodes-cloudflare-r2` in the **Package** field  
+2. Enter `n8n-nodes-cloudflare-r2-storage` in the **Package** field  
 3. Click **Install**
 4. Restart your n8n instance
 
@@ -32,7 +32,7 @@ An n8n community node for seamless integration with **Cloudflare R2 Object Stora
 cd ~/.n8n
 
 # Install the package  
-npm install @jezweb/n8n-nodes-cloudflare-r2
+npm install n8n-nodes-cloudflare-r2-storage
 
 # Restart n8n
 ```
@@ -203,7 +203,7 @@ npm run build
 # Link for local testing
 npm link
 cd ~/.n8n/custom
-npm link @jezweb/n8n-nodes-cloudflare-r2
+npm link n8n-nodes-cloudflare-r2-storage
 ```
 
 ### Testing
