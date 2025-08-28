@@ -607,11 +607,14 @@ export class CloudflareR2 implements INodeType {
 				let responseData: IDataObject | IDataObject[] = {};
 
 				if (resource === 'bucket') {
-					responseData = await executeBucketOperation(this, i);
+					const operation = this.getNodeParameter('operation', i) as R2BucketOperation;
+					responseData = await executeBucketOperation.call(this, operation, i);
 				} else if (resource === 'object') {
-					responseData = await executeObjectOperation(this, i);
+					const operation = this.getNodeParameter('operation', i) as R2ObjectOperation;
+					responseData = await executeObjectOperation.call(this, operation, i);
 				} else if (resource === 'batch') {
-					responseData = await executeBatchOperation(this, i);
+					const operation = this.getNodeParameter('operation', i) as R2BatchOperation;
+					responseData = await executeBatchOperation.call(this, operation, i);
 				}
 
 				if (Array.isArray(responseData)) {
@@ -636,228 +639,244 @@ export class CloudflareR2 implements INodeType {
 	}
 }
 
-async function executeBucketOperation(executeFunctions: IExecuteFunctions, itemIndex: number): Promise<IDataObject> {
-	const operation = executeFunctions.getNodeParameter('operation', itemIndex) as R2BucketOperation;
-
-		switch (operation) {
-			case 'create':
-				const bucketName = this.getNodeParameter('bucketName', itemIndex) as string;
-				const location = this.getNodeParameter('location', itemIndex) as string;
-				
-				if (!CloudflareR2Utils.validateBucketName(bucketName)) {
-					throw new NodeOperationError(this.getNode(), 'Invalid bucket name format');
-				}
-
-				const newBucket = await CloudflareR2Utils.createBucket(
-					this, 
-					bucketName, 
-					location || undefined
-				);
-				return { bucket: newBucket };
-
-			case 'list':
-				const buckets = await CloudflareR2Utils.listBuckets(this);
-				return { buckets };
-
-			case 'get':
-				const getBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
-				const bucket = await CloudflareR2Utils.getBucket(this, getBucketName);
-				return { bucket };
-
-			case 'delete':
-				const deleteBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
-				await CloudflareR2Utils.deleteBucket(this, deleteBucketName);
-				return { success: true, message: `Bucket ${deleteBucketName} deleted` };
-
-			case 'getCORS':
-				const corsGetBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
-				const corsConfig = await CloudflareR2Utils.getCORSConfiguration(this, corsGetBucketName);
-				return { corsConfiguration: corsConfig };
-
-			case 'setCORS':
-				const corsSetBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
-				const corsRules = this.getNodeParameter('corsRules', itemIndex) as any;
-				
-				const corsConfiguration: R2CORSConfiguration = {
-					rules: corsRules.rules.map((rule: any) => ({
-						allowed_origins: rule.allowedOrigins.split(',').map((s: string) => s.trim()),
-						allowed_methods: rule.allowedMethods,
-						allowed_headers: rule.allowedHeaders ? rule.allowedHeaders.split(',').map((s: string) => s.trim()) : undefined,
-						max_age: rule.maxAge,
-					}))
-				};
-
-				await CloudflareR2Utils.setCORSConfiguration(this, corsSetBucketName, corsConfiguration);
-				return { success: true, message: 'CORS configuration updated' };
-
-			case 'deleteCORS':
-				const corsDeleteBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
-				await CloudflareR2Utils.setCORSConfiguration(this, corsDeleteBucketName, { rules: [] });
-				return { success: true, message: 'CORS configuration deleted' };
-
-			default:
-				throw new NodeOperationError(this.getNode(), `Unknown bucket operation: ${operation}`);
-		}
-	}
-
-	private async executeObjectOperation(itemIndex: number): Promise<IDataObject> {
-		const operation = this.getNodeParameter('operation', itemIndex) as R2ObjectOperation;
-		const bucketName = this.getNodeParameter('bucketName', itemIndex) as string;
-
-		switch (operation) {
-			case 'upload':
-				return await this.executeUpload(itemIndex, bucketName);
-
-			case 'download':
-				return await this.executeDownload(itemIndex, bucketName);
-
-			case 'delete':
-				const deleteKey = this.getNodeParameter('objectKey', itemIndex) as string;
-				await CloudflareR2Utils.deleteObjects(this, { key: deleteKey, bucket: bucketName });
-				return { success: true, message: `Object ${deleteKey} deleted` };
-
-			case 'list':
-				const listOptions = this.getNodeParameter('listOptions', itemIndex) as any;
-				const r2ListOptions: R2ListOptions = {
-					bucket: bucketName,
-					prefix: listOptions.prefix,
-					max_keys: listOptions.maxKeys,
-					delimiter: listOptions.delimiter,
-				};
-				
-				const listResult = await CloudflareR2Utils.listObjects(this, r2ListOptions);
-				return { objects: listResult.objects, truncated: listResult.truncated };
-
-			case 'getMetadata':
-				// This would require a HEAD request to get just metadata
-				const metadataKey = this.getNodeParameter('objectKey', itemIndex) as string;
-				// For now, return a placeholder - would need HEAD request implementation
-				return { 
-					key: metadataKey,
-					message: 'Metadata retrieval not fully implemented yet'
-				};
-
-			case 'copy':
-				// Copy operation would require implementing S3 COPY command
-				const sourceBucket = this.getNodeParameter('sourceBucket', itemIndex) as string || bucketName;
-				const sourceKey = this.getNodeParameter('sourceKey', itemIndex) as string;
-				const destinationKey = this.getNodeParameter('destinationKey', itemIndex) as string;
-				
-				return { 
-					success: true, 
-					message: `Copy from ${sourceBucket}/${sourceKey} to ${bucketName}/${destinationKey} (not fully implemented)`
-				};
-
-			default:
-				throw new NodeOperationError(this.getNode(), `Unknown object operation: ${operation}`);
-		}
-	}
-
-	private async executeUpload(itemIndex: number, bucketName: string): Promise<IDataObject> {
-		const objectKey = this.getNodeParameter('objectKey', itemIndex) as string;
-		const dataSource = this.getNodeParameter('dataSource', itemIndex) as string;
-		const contentType = this.getNodeParameter('contentType', itemIndex) as string;
-		const metadataParam = this.getNodeParameter('metadata', itemIndex) as any;
-
-		if (!CloudflareR2Utils.validateObjectKey(objectKey)) {
-			throw new NodeOperationError(this.getNode(), 'Invalid object key format');
-		}
-
-		let data: Buffer | string;
-		let detectedContentType = contentType;
-
-		if (dataSource === 'binaryData') {
-			const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex) as string;
-			const binaryData = this.helpers.assertBinaryData(itemIndex, binaryPropertyName);
-			data = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
+// Helper functions
+async function executeBucketOperation(
+	this: IExecuteFunctions,
+	operation: R2BucketOperation,
+	itemIndex: number
+): Promise<IDataObject> {
+	switch (operation) {
+		case 'create':
+			const bucketName = this.getNodeParameter('bucketName', itemIndex) as string;
+			const location = this.getNodeParameter('location', itemIndex) as string;
 			
-			if (!detectedContentType && binaryData.mimeType) {
-				detectedContentType = binaryData.mimeType;
+			if (!CloudflareR2Utils.validateBucketName(bucketName)) {
+				throw new NodeOperationError(this.getNode(), 'Invalid bucket name format');
 			}
-		} else {
-			data = this.getNodeParameter('textContent', itemIndex) as string;
-			if (!detectedContentType) {
-				detectedContentType = 'text/plain';
-			}
-		}
 
-		// Process metadata
-		const metadata: { [key: string]: string } = {};
-		if (metadataParam.metadataFields) {
-			metadataParam.metadataFields.forEach((field: any) => {
-				if (field.key && field.value) {
-					metadata[field.key] = field.value;
-				}
-			});
-		}
+			const newBucket = await CloudflareR2Utils.createBucket(
+				this, 
+				bucketName, 
+				location || undefined
+			);
+			return { bucket: newBucket };
 
-		const uploadOptions: R2UploadOptions = {
-			key: objectKey,
-			bucket: bucketName,
-			content_type: detectedContentType,
-			metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-		};
+		case 'list':
+			const buckets = await CloudflareR2Utils.listBuckets(this);
+			return { buckets };
 
-		const result = await CloudflareR2Utils.uploadObject(this, uploadOptions, data);
-		return { 
-			success: true, 
-			object: result,
-			message: `Object ${objectKey} uploaded successfully`
-		};
+		case 'get':
+			const getBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
+			const bucket = await CloudflareR2Utils.getBucket(this, getBucketName);
+			return { bucket };
+
+		case 'delete':
+			const deleteBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
+			await CloudflareR2Utils.deleteBucket(this, deleteBucketName);
+			return { success: true, message: `Bucket ${deleteBucketName} deleted` };
+
+		case 'getCORS':
+			const corsGetBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
+			const corsConfig = await CloudflareR2Utils.getCORSConfiguration(this, corsGetBucketName);
+			return { corsConfiguration: corsConfig };
+
+		case 'setCORS':
+			const corsSetBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
+			const corsRules = this.getNodeParameter('corsRules', itemIndex) as any;
+			
+			const corsConfiguration: R2CORSConfiguration = {
+				rules: corsRules.rules.map((rule: any) => ({
+					allowed_origins: rule.allowedOrigins.split(',').map((s: string) => s.trim()),
+					allowed_methods: rule.allowedMethods,
+					allowed_headers: rule.allowedHeaders ? rule.allowedHeaders.split(',').map((s: string) => s.trim()) : undefined,
+					max_age: rule.maxAge,
+				}))
+			};
+
+			await CloudflareR2Utils.setCORSConfiguration(this, corsSetBucketName, corsConfiguration);
+			return { success: true, message: 'CORS configuration updated' };
+
+		case 'deleteCORS':
+			const corsDeleteBucketName = this.getNodeParameter('bucketName', itemIndex) as string;
+			await CloudflareR2Utils.setCORSConfiguration(this, corsDeleteBucketName, { rules: [] });
+			return { success: true, message: 'CORS configuration deleted' };
+
+		default:
+			throw new NodeOperationError(this.getNode(), `Unknown bucket operation: ${operation}`);
+	}
+}
+
+async function executeObjectOperation(
+	this: IExecuteFunctions,
+	operation: R2ObjectOperation,
+	itemIndex: number
+): Promise<IDataObject> {
+	const bucketName = this.getNodeParameter('bucketName', itemIndex) as string;
+
+	switch (operation) {
+		case 'upload':
+			return await executeUpload.call(this, itemIndex, bucketName);
+
+		case 'download':
+			return await executeDownload.call(this, itemIndex, bucketName);
+
+		case 'delete':
+			const deleteKey = this.getNodeParameter('objectKey', itemIndex) as string;
+			await CloudflareR2Utils.deleteObjects(this, { key: deleteKey, bucket: bucketName });
+			return { success: true, message: `Object ${deleteKey} deleted` };
+
+		case 'list':
+			const listOptions = this.getNodeParameter('listOptions', itemIndex) as any;
+			const r2ListOptions: R2ListOptions = {
+				bucket: bucketName,
+				prefix: listOptions.prefix,
+				max_keys: listOptions.maxKeys,
+				delimiter: listOptions.delimiter,
+			};
+			
+			const listResult = await CloudflareR2Utils.listObjects(this, r2ListOptions);
+			return { objects: listResult.objects, truncated: listResult.truncated };
+
+		case 'getMetadata':
+			// This would require a HEAD request to get just metadata
+			const metadataKey = this.getNodeParameter('objectKey', itemIndex) as string;
+			// For now, return a placeholder - would need HEAD request implementation
+			return { 
+				key: metadataKey,
+				message: 'Metadata retrieval not fully implemented yet'
+			};
+
+		case 'copy':
+			// Copy operation would require implementing S3 COPY command
+			const sourceBucket = this.getNodeParameter('sourceBucket', itemIndex) as string || bucketName;
+			const sourceKey = this.getNodeParameter('sourceKey', itemIndex) as string;
+			const destinationKey = this.getNodeParameter('destinationKey', itemIndex) as string;
+			
+			return { 
+				success: true, 
+				message: `Copy from ${sourceBucket}/${sourceKey} to ${bucketName}/${destinationKey} (not fully implemented)`
+			};
+
+		default:
+			throw new NodeOperationError(this.getNode(), `Unknown object operation: ${operation}`);
+	}
+}
+
+async function executeUpload(
+	this: IExecuteFunctions,
+	itemIndex: number,
+	bucketName: string
+): Promise<IDataObject> {
+	const objectKey = this.getNodeParameter('objectKey', itemIndex) as string;
+	const dataSource = this.getNodeParameter('dataSource', itemIndex) as string;
+	const contentType = this.getNodeParameter('contentType', itemIndex) as string;
+	const metadataParam = this.getNodeParameter('metadata', itemIndex) as any;
+
+	if (!CloudflareR2Utils.validateObjectKey(objectKey)) {
+		throw new NodeOperationError(this.getNode(), 'Invalid object key format');
 	}
 
-	private async executeDownload(itemIndex: number, bucketName: string): Promise<IDataObject> {
-		const objectKey = this.getNodeParameter('objectKey', itemIndex) as string;
+	let data: Buffer | string;
+	let detectedContentType = contentType;
 
-		const downloadOptions: R2DownloadOptions = {
-			key: objectKey,
-			bucket: bucketName,
-		};
-
-		const result = await CloudflareR2Utils.downloadObject(this, downloadOptions);
+	if (dataSource === 'binaryData') {
+		const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex) as string;
+		const binaryData = this.helpers.assertBinaryData(itemIndex, binaryPropertyName);
+		data = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
 		
-		// Add binary data to n8n
-		const binaryData: IBinaryData = {
-			data: result.data.toString('base64'),
-			mimeType: result.metadata.content_type || 'application/octet-stream',
-			fileName: objectKey.split('/').pop() || objectKey,
-			fileSize: result.data.length.toString(),
-		};
-
-		return {
-			success: true,
-			object: result.metadata,
-			binary: {
-				data: binaryData
-			}
-		};
+		if (!detectedContentType && binaryData.mimeType) {
+			detectedContentType = binaryData.mimeType;
+		}
+	} else {
+		data = this.getNodeParameter('textContent', itemIndex) as string;
+		if (!detectedContentType) {
+			detectedContentType = 'text/plain';
+		}
 	}
 
-	private async executeBatchOperation(itemIndex: number): Promise<IDataObject[]> {
-		const operation = this.getNodeParameter('operation', itemIndex) as R2BatchOperation;
-		const bucketName = this.getNodeParameter('bucketName', itemIndex) as string;
+	// Process metadata
+	const metadata: { [key: string]: string } = {};
+	if (metadataParam.metadataFields) {
+		metadataParam.metadataFields.forEach((field: any) => {
+			if (field.key && field.value) {
+				metadata[field.key] = field.value;
+			}
+		});
+	}
 
-		switch (operation) {
-			case 'deleteMultiple':
-				const deleteKeys = this.getNodeParameter('objectKeys', itemIndex) as string;
-				const keysToDelete = deleteKeys.split('\n').map(k => k.trim()).filter(k => k);
-				
-				if (keysToDelete.length > 1000) {
-					throw new NodeOperationError(this.getNode(), 'Cannot delete more than 1000 objects at once');
-				}
+	const uploadOptions: R2UploadOptions = {
+		key: objectKey,
+		bucket: bucketName,
+		content_type: detectedContentType,
+		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+	};
 
-				await CloudflareR2Utils.deleteObjects(this, { key: keysToDelete, bucket: bucketName });
-				return [{ success: true, deletedCount: keysToDelete.length }];
+	const result = await CloudflareR2Utils.uploadObject(this, uploadOptions, data);
+	return { 
+		success: true, 
+		object: result,
+		message: `Object ${objectKey} uploaded successfully`
+	};
+}
 
-			case 'uploadMultiple':
-			case 'downloadMultiple':
-				return [{ 
-					success: false, 
-					message: `Batch operation ${operation} not yet implemented` 
-				}];
+async function executeDownload(
+	this: IExecuteFunctions,
+	itemIndex: number,
+	bucketName: string
+): Promise<IDataObject> {
+	const objectKey = this.getNodeParameter('objectKey', itemIndex) as string;
 
-			default:
-				throw new NodeOperationError(this.getNode(), `Unknown batch operation: ${operation}`);
+	const downloadOptions: R2DownloadOptions = {
+		key: objectKey,
+		bucket: bucketName,
+	};
+
+	const result = await CloudflareR2Utils.downloadObject(this, downloadOptions);
+	
+	// Add binary data to n8n
+	const binaryData: IBinaryData = {
+		data: result.data.toString('base64'),
+		mimeType: result.metadata.content_type || 'application/octet-stream',
+		fileName: objectKey.split('/').pop() || objectKey,
+		fileSize: result.data.length.toString(),
+	};
+
+	return {
+		success: true,
+		object: result.metadata,
+		binary: {
+			data: binaryData
 		}
+	};
+}
+
+async function executeBatchOperation(
+	this: IExecuteFunctions,
+	operation: R2BatchOperation,
+	itemIndex: number
+): Promise<IDataObject[]> {
+	const bucketName = this.getNodeParameter('bucketName', itemIndex) as string;
+
+	switch (operation) {
+		case 'deleteMultiple':
+			const deleteKeys = this.getNodeParameter('objectKeys', itemIndex) as string;
+			const keysToDelete = deleteKeys.split('\n').map(k => k.trim()).filter(k => k);
+			
+			if (keysToDelete.length > 1000) {
+				throw new NodeOperationError(this.getNode(), 'Cannot delete more than 1000 objects at once');
+			}
+
+			await CloudflareR2Utils.deleteObjects(this, { key: keysToDelete, bucket: bucketName });
+			return [{ success: true, deletedCount: keysToDelete.length }];
+
+		case 'uploadMultiple':
+		case 'downloadMultiple':
+			return [{ 
+				success: false, 
+				message: `Batch operation ${operation} not yet implemented` 
+			}];
+
+		default:
+			throw new NodeOperationError(this.getNode(), `Unknown batch operation: ${operation}`);
 	}
 }

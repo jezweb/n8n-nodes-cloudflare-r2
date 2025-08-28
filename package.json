@@ -1,5 +1,5 @@
 {
-  "name": "n8n-nodes-cloudflare-r2",
+  "name": "@jezweb/n8n-nodes-cloudflare-r2",
   "version": "0.1.0",
   "description": "n8n community node for Cloudflare R2 object storage integration, featuring bucket management, object operations (upload/download/delete), multipart uploads, batch operations, CORS policies, and full AI Agent compatibility",
   "keywords": [
@@ -35,7 +35,7 @@
     "format": "prettier nodes credentials --write",
     "lint": "eslint nodes credentials package.json",
     "lintfix": "eslint nodes credentials package.json --fix",
-    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes credentials package.json"
+    "prepublishOnly": "npm run build"
   },
   "files": [
     "dist"

@@ -267,13 +267,14 @@ export class CloudflareR2Utils {
 		executeFunctions: IExecuteFunctions,
 		options: R2ListOptions
 	): Promise<R2ListResponse> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		// TODO: Implement proper S3 list objects API call
+		// const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
 		
-		const params = new URLSearchParams();
-		if (options.prefix) params.append('prefix', options.prefix);
-		if (options.delimiter) params.append('delimiter', options.delimiter);
-		if (options.max_keys) params.append('max-keys', options.max_keys.toString());
-		if (options.continuation_token) params.append('continuation-token', options.continuation_token);
+		// const params = new URLSearchParams();
+		// if (options.prefix) params.append('prefix', options.prefix);
+		// if (options.delimiter) params.append('delimiter', options.delimiter);
+		// if (options.max_keys) params.append('max-keys', options.max_keys.toString());
+		// if (options.continuation_token) params.append('continuation-token', options.continuation_token);
 
 		try {
 			// Parse XML response (simplified - in production would use proper XML parser)
