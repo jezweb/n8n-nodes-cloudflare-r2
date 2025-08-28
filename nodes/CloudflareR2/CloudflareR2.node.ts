@@ -23,15 +23,15 @@ import {
 
 export class CloudflareR2 implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Cloudflare R2',
-		name: 'cloudflareR2',
+		displayName: 'Cloudflare R2 Storage',
+		name: 'cloudflareR2Storage',
 		icon: 'file:cloudflarer2.svg',
 		group: ['transform'],
 		version: 1,
 		subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
 		description: 'Interact with Cloudflare R2 object storage. Upload, download, manage files and buckets. Supports batch operations, multipart uploads, and can be used as a tool by AI Agents.',
 		defaults: {
-			name: 'Cloudflare R2',
+			name: 'Cloudflare R2 Storage',
 		},
 		inputs: [
 			{
@@ -47,7 +47,7 @@ export class CloudflareR2 implements INodeType {
 		],
 		credentials: [
 			{
-				name: 'cloudflareR2Api',
+				name: 'cloudflareR2StorageApi',
 				required: true,
 			},
 		],

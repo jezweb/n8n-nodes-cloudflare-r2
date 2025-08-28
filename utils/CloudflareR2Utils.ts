@@ -25,7 +25,7 @@ export class CloudflareR2Utils {
 		body?: IDataObject,
 		headers?: IDataObject,
 	): Promise<R2ApiResponse<T>> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const options: IHttpRequestOptions = {
 			method: method as any,
@@ -62,7 +62,7 @@ export class CloudflareR2Utils {
 		options: R2UploadOptions,
 		data: Buffer | string
 	): Promise<R2Object> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const uploadHeaders: IDataObject = {
 			'Content-Type': options.content_type || 'application/octet-stream',
@@ -122,7 +122,7 @@ export class CloudflareR2Utils {
 		executeFunctions: IExecuteFunctions,
 		options: R2DownloadOptions
 	): Promise<{ data: Buffer; metadata: R2Object }> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const downloadHeaders: IDataObject = {};
 		if (options.range) {
@@ -168,7 +168,7 @@ export class CloudflareR2Utils {
 	 * List buckets
 	 */
 	static async listBuckets(executeFunctions: IExecuteFunctions): Promise<R2Bucket[]> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const response = await this.makeApiRequest<R2BucketListResponse>(
 			executeFunctions,
@@ -194,7 +194,7 @@ export class CloudflareR2Utils {
 		bucketName: string,
 		location?: string
 	): Promise<R2Bucket> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const body: IDataObject = { name: bucketName };
 		if (location) {
@@ -222,7 +222,7 @@ export class CloudflareR2Utils {
 	 * Delete bucket
 	 */
 	static async deleteBucket(executeFunctions: IExecuteFunctions, bucketName: string): Promise<void> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const response = await this.makeApiRequest(
 			executeFunctions,
@@ -242,7 +242,7 @@ export class CloudflareR2Utils {
 	 * Get bucket info
 	 */
 	static async getBucket(executeFunctions: IExecuteFunctions, bucketName: string): Promise<R2Bucket> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const response = await this.makeApiRequest<R2Bucket>(
 			executeFunctions,
@@ -298,7 +298,7 @@ export class CloudflareR2Utils {
 		executeFunctions: IExecuteFunctions,
 		options: R2DeleteOptions
 	): Promise<void> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const keys = Array.isArray(options.key) ? options.key : [options.key];
 		
@@ -331,7 +331,7 @@ export class CloudflareR2Utils {
 		executeFunctions: IExecuteFunctions, 
 		bucketName: string
 	): Promise<R2CORSConfiguration> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const response = await this.makeApiRequest<R2CORSConfiguration>(
 			executeFunctions,
@@ -357,7 +357,7 @@ export class CloudflareR2Utils {
 		bucketName: string,
 		corsConfig: R2CORSConfiguration
 	): Promise<void> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
 		
 		const response = await this.makeApiRequest(
 			executeFunctions,

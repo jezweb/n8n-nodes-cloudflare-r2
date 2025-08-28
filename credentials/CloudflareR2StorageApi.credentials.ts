@@ -1,8 +1,8 @@
 import { ICredentialType, INodeProperties } from 'n8n-workflow';
 
-export class CloudflareR2Api implements ICredentialType {
-	name = 'cloudflareR2Api';
-	displayName = 'Cloudflare R2 API';
+export class CloudflareR2StorageApi implements ICredentialType {
+	name = 'cloudflareR2StorageApi';
+	displayName = 'Cloudflare R2 Storage API';
 	documentationUrl = 'https://developers.cloudflare.com/r2/';
 	properties: INodeProperties[] = [
 		{
