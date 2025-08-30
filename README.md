@@ -61,9 +61,9 @@ npm install n8n-nodes-cloudflare-r2-storage
 
 ## Credentials
 
-You'll need a Cloudflare account with R2 enabled and an API token with R2 permissions.
+You'll need a Cloudflare account with R2 enabled. This node requires two sets of credentials:
 
-### Creating API Token
+### 1. API Token (for bucket management)
 
 1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens)
 2. Click **"Create Token"** → **"Custom token"**
@@ -72,10 +72,24 @@ You'll need a Cloudflare account with R2 enabled and an API token with R2 permis
    - **Zone Resources**: `Include - All zones` (if using custom domains)
 4. Copy the generated token
 
+### 2. R2 Access Keys (for object operations)
+
+1. Go to your [Cloudflare R2 Dashboard](https://dash.cloudflare.com/)
+2. Select **R2** → **Manage R2 API Tokens**
+3. Click **"Create API Token"**
+4. Configure:
+   - **Token Name**: Choose a descriptive name (e.g., "n8n-r2-access")
+   - **Permissions**: Select **Object Read & Write** (or appropriate level)
+   - **Bucket**: Select specific buckets or allow all
+5. Click **"Create API Token"**
+6. Copy the **Access Key ID** and **Secret Access Key** (you won't see the secret again!)
+
 ### Node Credentials Configuration
 
 - **Account ID**: Your Cloudflare Account ID (found in dashboard sidebar)
-- **API Token**: The token created above
+- **API Token**: The token created in step 1 (for bucket operations)
+- **Access Key ID**: The R2 Access Key ID from step 2 (for object operations)
+- **Secret Access Key**: The R2 Secret Access Key from step 2 (for object operations)
 - **API Endpoint**: `https://api.cloudflare.com/client/v4` (default)
 
 ## Usage Examples

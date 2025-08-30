@@ -124,6 +124,8 @@ export interface R2ApiCredentials {
 	accountId: string;
 	apiToken: string;
 	apiEndpoint: string;
+	accessKeyId: string;
+	secretAccessKey: string;
 }
 
 export interface R2ApiResponse<T = any> {

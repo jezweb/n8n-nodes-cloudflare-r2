@@ -5,6 +5,29 @@ All notable changes to the n8n-nodes-cloudflare-r2 project will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-08-30
+
+### Fixed
+- 🔧 **Critical authentication bug** for S3-compatible API operations
+  - Fixed 400 Bad Request errors when uploading/downloading objects
+  - Replaced incorrect Bearer token authentication with AWS Signature V4 for object operations
+  - Added proper request signing using aws4 library
+
+### Changed
+- 🔑 **Enhanced credential configuration**
+  - Added Access Key ID and Secret Access Key fields for S3-compatible API
+  - Retained API Token for bucket management operations
+  - Updated credential descriptions with clear usage guidance
+
+### Added
+- 📦 Added `aws4` dependency for proper AWS Signature V4 request signing
+- 📚 Improved documentation with detailed credential setup instructions
+
+## [0.1.1] - 2025-08-29
+
+### Fixed
+- Minor bug fixes and improvements
+
 ## [0.1.0] - 2025-08-28
 
 ### Added

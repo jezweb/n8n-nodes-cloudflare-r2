@@ -22,7 +22,26 @@ export class CloudflareR2StorageApi implements ICredentialType {
 			},
 			default: '',
 			required: true,
-			description: 'Your Cloudflare API Token with R2:Read and R2:Write permissions. Create this in your Cloudflare Profile > API Tokens.',
+			description: 'Your Cloudflare API Token with R2:Read and R2:Write permissions. Required for bucket management. Create this in your Cloudflare Profile > API Tokens.',
+		},
+		{
+			displayName: 'Access Key ID',
+			name: 'accessKeyId',
+			type: 'string',
+			default: '',
+			required: true,
+			description: 'Your R2 Access Key ID for S3-compatible API. Required for object operations. Generate this in Cloudflare Dashboard > R2 > Manage R2 API Tokens.',
+		},
+		{
+			displayName: 'Secret Access Key',
+			name: 'secretAccessKey',
+			type: 'string',
+			typeOptions: {
+				password: true,
+			},
+			default: '',
+			required: true,
+			description: 'Your R2 Secret Access Key for S3-compatible API. Required for object operations. Generate this in Cloudflare Dashboard > R2 > Manage R2 API Tokens.',
 		},
 		{
 			displayName: 'API Endpoint',

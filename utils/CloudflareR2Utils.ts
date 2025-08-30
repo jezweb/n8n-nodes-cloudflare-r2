@@ -1,4 +1,5 @@
 import { IExecuteFunctions, IDataObject, IHttpRequestOptions, NodeOperationError } from 'n8n-workflow';
+import * as aws4 from 'aws4';
 import { 
 	R2ApiCredentials, 
 	R2ApiResponse, 
@@ -62,7 +63,7 @@ export class CloudflareR2Utils {
 		options: R2UploadOptions,
 		data: Buffer | string
 	): Promise<R2Object> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as any;
 		
 		const uploadHeaders: IDataObject = {
 			'Content-Type': options.content_type || 'application/octet-stream',
@@ -83,15 +84,36 @@ export class CloudflareR2Utils {
 			uploadHeaders['x-amz-storage-class'] = options.storage_class;
 		}
 
-		const s3Endpoint = `https://${credentials.accountId}.r2.cloudflarestorage.com/${options.bucket}/${options.key}`;
+		const hostname = `${credentials.accountId}.r2.cloudflarestorage.com`;
+		const path = `/${options.bucket}/${options.key}`;
 		
+		// Convert headers to plain object for aws4
+		const plainHeaders: { [key: string]: string } = {};
+		Object.keys(uploadHeaders).forEach(key => {
+			plainHeaders[key] = String(uploadHeaders[key]);
+		});
+		
+		// Prepare request for AWS4 signing
+		const requestOptions = {
+			method: 'PUT',
+			host: hostname,
+			path: path,
+			headers: plainHeaders,
+			body: data,
+			service: 's3',
+			region: 'auto',
+		};
+
+		// Sign the request
+		const signedRequest = aws4.sign(requestOptions, {
+			accessKeyId: credentials.accessKeyId,
+			secretAccessKey: credentials.secretAccessKey,
+		});
+
 		const uploadOptions: IHttpRequestOptions = {
 			method: 'PUT',
-			url: s3Endpoint,
-			headers: {
-				'Authorization': `Bearer ${credentials.apiToken}`,
-				...uploadHeaders,
-			},
+			url: `https://${hostname}${path}`,
+			headers: signedRequest.headers as IDataObject,
 			body: data,
 		};
 
@@ -122,22 +144,42 @@ export class CloudflareR2Utils {
 		executeFunctions: IExecuteFunctions,
 		options: R2DownloadOptions
 	): Promise<{ data: Buffer; metadata: R2Object }> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as any;
 		
 		const downloadHeaders: IDataObject = {};
 		if (options.range) {
 			downloadHeaders['Range'] = options.range;
 		}
 
-		const s3Endpoint = `https://${credentials.accountId}.r2.cloudflarestorage.com/${options.bucket}/${options.key}`;
+		const hostname = `${credentials.accountId}.r2.cloudflarestorage.com`;
+		const path = `/${options.bucket}/${options.key}`;
 		
+		// Convert headers to plain object for aws4
+		const plainHeaders: { [key: string]: string } = {};
+		Object.keys(downloadHeaders).forEach(key => {
+			plainHeaders[key] = String(downloadHeaders[key]);
+		});
+		
+		// Prepare request for AWS4 signing
+		const requestOptions = {
+			method: 'GET',
+			host: hostname,
+			path: path,
+			headers: plainHeaders,
+			service: 's3',
+			region: 'auto',
+		};
+
+		// Sign the request
+		const signedRequest = aws4.sign(requestOptions, {
+			accessKeyId: credentials.accessKeyId,
+			secretAccessKey: credentials.secretAccessKey,
+		});
+
 		const downloadOptions: IHttpRequestOptions = {
 			method: 'GET',
-			url: s3Endpoint,
-			headers: {
-				'Authorization': `Bearer ${credentials.apiToken}`,
-				...downloadHeaders,
-			},
+			url: `https://${hostname}${path}`,
+			headers: signedRequest.headers as IDataObject,
 			encoding: 'arraybuffer', // Get binary data
 		};
 
@@ -298,19 +340,34 @@ export class CloudflareR2Utils {
 		executeFunctions: IExecuteFunctions,
 		options: R2DeleteOptions
 	): Promise<void> {
-		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as R2ApiCredentials;
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as any;
 		
 		const keys = Array.isArray(options.key) ? options.key : [options.key];
 		
 		for (const key of keys) {
-			const s3Endpoint = `https://${credentials.accountId}.r2.cloudflarestorage.com/${options.bucket}/${key}`;
+			const hostname = `${credentials.accountId}.r2.cloudflarestorage.com`;
+			const path = `/${options.bucket}/${key}`;
 			
+			// Prepare request for AWS4 signing
+			const requestOptions = {
+				method: 'DELETE',
+				host: hostname,
+				path: path,
+				headers: {},
+				service: 's3',
+				region: 'auto',
+			};
+
+			// Sign the request
+			const signedRequest = aws4.sign(requestOptions, {
+				accessKeyId: credentials.accessKeyId,
+				secretAccessKey: credentials.secretAccessKey,
+			});
+
 			const deleteOptions: IHttpRequestOptions = {
 				method: 'DELETE',
-				url: s3Endpoint,
-				headers: {
-					'Authorization': `Bearer ${credentials.apiToken}`,
-				},
+				url: `https://${hostname}${path}`,
+				headers: signedRequest.headers as IDataObject,
 			};
 
 			try {
