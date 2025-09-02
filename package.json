@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-cloudflare-r2-storage",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "n8n community node for Cloudflare R2 object storage integration, featuring bucket management, object operations (upload/download/delete), multipart uploads, batch operations, CORS policies, and full AI Agent compatibility",
   "keywords": [
     "n8n-community-node-package",
