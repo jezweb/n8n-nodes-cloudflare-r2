@@ -5,6 +5,36 @@ All notable changes to the n8n-nodes-cloudflare-r2 project will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-09-02
+
+### Added
+- 🎉 **Native Base64 Data Support** for direct file uploads
+  - New data source option "Base64 Data" alongside Binary Data and Text Content
+  - Direct upload from base64-encoded strings without intermediate Code nodes
+  - Support for both raw base64 strings and data URLs (data:image/png;base64,...)
+  - Automatic MIME type detection from data URL prefixes
+  - Optional filename and MIME type override parameters
+  - Expression support for JSON paths (e.g., {{ $json.file.data }})
+  - Comprehensive error handling for invalid base64 content
+
+### Enhanced
+- 🤖 **Improved AI Agent Compatibility**
+  - AI agents can now directly pass base64 data for file uploads
+  - Better integration with webhook data containing base64 files
+  
+- 🔗 **Webhook Integration**
+  - Seamless handling of base64 file data from webhooks
+  - Support for form submissions with file uploads
+  - Direct processing of API responses with base64-encoded content
+
+### Technical Details
+- Automatic MIME type detection from multiple sources:
+  - Data URL prefix (data:image/png;base64,...)
+  - File extension from optional filename parameter
+  - Fallback to application/octet-stream for unknown types
+- Whitespace removal for robust base64 parsing
+- Buffer conversion with proper error handling
+
 ## [0.1.2] - 2025-08-30
 
 ### Fixed
@@ -26,7 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.1] - 2025-08-29
 
 ### Fixed
-- Minor bug fixes and improvements
+- Fixed node name conflicts with existing Cloudflare packages
+- Updated package name to avoid naming collisions
 
 ## [0.1.0] - 2025-08-28
 

@@ -79,36 +79,62 @@ Using Cloudflare REST API endpoints from the comprehensive API reference:
 - [x] TypeScript configuration  
 - [x] Gulpfile for build process
 
-### Phase 2: Core Implementation ✅ (In Progress)
+### Phase 2: Core Implementation ✅ 
 - [x] CloudflareR2Api credentials
 - [x] R2 types and interfaces
 - [x] R2 utility functions
-- [x] Main CloudflareR2 node implementation (needs TypeScript fixes)
+- [x] Main CloudflareR2 node implementation (v0.1.1 - working)
 
 ### Phase 3: Features & Polish ✅
 - [x] SVG icon
 - [x] Documentation (README, ARCHITECTURE, DEPLOYMENT, CLAUDE.md, CHANGELOG.md)
-- [ ] Testing and validation (TypeScript build issues)
-- [ ] Git repository initialization
+- [x] Testing and validation 
+- [x] Git repository initialization
+- [x] Published to npm as @jezweb/n8n-nodes-cloudflare-r2-storage
 
-## Current Issues
+### Phase 4: Feature Enhancements (In Progress)
+- [ ] Base64 data support for direct uploads
+- [ ] Improved webhook integration
+- [ ] Enhanced AI agent compatibility
 
-### TypeScript Build Errors
-The main node implementation has context issues where `this` is not correctly bound to IExecuteFunctions. 
-The private methods need to be refactored as standalone functions that accept executeFunctions as a parameter.
+## Current Task: Add Base64 Data Support
 
-Key areas needing fixes:
-1. Method calls in execute() function - need to pass executeFunctions context
-2. Private methods need to be converted to standalone functions
-3. All `this.getNodeParameter()` calls need to be `executeFunctions.getNodeParameter()`
-4. All utility function calls need proper executeFunctions context
+### Motivation
+Users currently need an intermediate Code node to convert base64 data to binary before uploading to R2. 
+Adding native base64 support would eliminate this extra step, especially useful for:
+- Webhook integrations with base64 file data
+- Form submissions with file uploads
+- API responses with base64-encoded images
+- AI agents passing base64 data directly
 
-### Recommended Next Steps
-1. Complete the TypeScript refactoring to fix build errors
-2. Test basic functionality with a simple operation (e.g., list buckets)
-3. Implement proper error handling
-4. Add more comprehensive testing
-5. Initialize git repository and commit working version
+### Implementation Plan
+1. **Add Base64 Data Source Option** (lines 326-340)
+   - Add "Base64 Data" option to dataSource dropdown
+   - Value: `base64Data`
+   - Description: "Upload from base64-encoded string"
+
+2. **Add Base64 Input Fields** (after line 373)
+   - `base64Content`: Text input for base64 string (supports expressions)
+   - `base64FileName`: Optional filename for the uploaded file
+   - `base64MimeType`: Optional MIME type (auto-detect if not provided)
+
+3. **Update Upload Logic** (lines 771-795)
+   - Handle base64 data conversion to Buffer
+   - Support both raw base64 and data URLs (data:image/png;base64,...)
+   - Auto-detect content type from data URL prefix
+   - Clean base64 string (remove prefixes and whitespace)
+
+4. **Version Update**
+   - Bump to v0.2.0 (minor version for new feature)
+   - Update CHANGELOG.md with feature description
+
+### Testing Requirements
+- Raw base64 strings
+- Data URLs with MIME type prefix
+- Large base64 files
+- Invalid base64 strings (error handling)
+- JSON path expressions ({{ $json.file.data }})
+- Batch operations with multiple base64 files
 
 ## API Reference Notes
 From Cloudflare API docs - comprehensive endpoint coverage available:
