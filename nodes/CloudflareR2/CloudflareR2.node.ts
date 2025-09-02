@@ -414,22 +414,6 @@ export class CloudflareR2 implements INodeType {
 				description: 'Optional filename for the uploaded file. If not provided, a default name will be used',
 			},
 
-			{
-				displayName: 'MIME Type',
-				name: 'base64MimeType',
-				type: 'string',
-				displayOptions: {
-					show: {
-						resource: ['object'],
-						operation: ['upload'],
-						dataSource: ['base64Data'],
-					},
-				},
-				default: '',
-				placeholder: 'e.g. image/png',
-				description: 'Optional MIME type. Will be auto-detected from data URL if not provided',
-			},
-
 			// CONTENT TYPE
 			{
 				displayName: 'Content Type',
@@ -847,7 +831,6 @@ async function executeUpload(
 	} else if (dataSource === 'base64Data') {
 		const base64Content = this.getNodeParameter('base64Content', itemIndex) as string;
 		const base64FileName = this.getNodeParameter('base64FileName', itemIndex) as string;
-		const base64MimeType = this.getNodeParameter('base64MimeType', itemIndex) as string;
 
 		if (!base64Content) {
 			throw new NodeOperationError(this.getNode(), 'Base64 content is required when using Base64 Data source');
@@ -859,7 +842,7 @@ async function executeUpload(
 			const matches = base64Content.match(/^data:([^;]+);base64,(.+)$/);
 			if (matches) {
 				// Auto-detect content type from data URL if not explicitly provided
-				if (!detectedContentType && !base64MimeType) {
+				if (!detectedContentType) {
 					detectedContentType = matches[1];
 				}
 				base64Clean = matches[2];
@@ -879,11 +862,8 @@ async function executeUpload(
 			throw new NodeOperationError(this.getNode(), `Invalid base64 content: ${error.message}`);
 		}
 
-		// Set content type from explicit parameter or detected from data URL
-		if (base64MimeType) {
-			detectedContentType = base64MimeType;
-		} else if (!detectedContentType) {
-			// Try to detect from filename extension
+		// If content type still not set, try to detect from filename extension
+		if (!detectedContentType) {
 			if (base64FileName) {
 				const ext = base64FileName.split('.').pop()?.toLowerCase();
 				const mimeTypes: { [key: string]: string } = {
