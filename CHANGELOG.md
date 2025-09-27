@@ -5,6 +5,30 @@ All notable changes to the n8n-nodes-cloudflare-r2 project will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2025-09-28
+
+### Added
+- 🔍 **Enhanced List Objects Filtering**: Major improvements for easier file discovery
+  - **File Extension Filter**: Simple field to filter by file type (pdf, jpg, docx, etc.)
+  - **Filename Contains Search**: Find files containing specific text anywhere in the name
+  - **Wildcard Pattern Support**: Use patterns like `*.pdf`, `invoice-*.docx`, `*-2024-*`
+  - **Start After Parameter**: Support for pagination through large result sets
+  - **Better Parameter Descriptions**: Added helpful examples and placeholders for all fields
+  - **Results Count**: Returns count of filtered results
+
+### Improved
+- 📝 **AI Agent Compatibility**: Much easier for AI agents to find specific files
+  - Clear examples in all parameter descriptions
+  - Multiple search methods available (prefix, contains, pattern, extension)
+  - Intuitive parameter names and placeholders
+  - Client-side filtering for complex searches
+
+### Technical Details
+- Filters are applied client-side after S3 API call for maximum flexibility
+- Pattern matching supports simple wildcards (* for any characters)
+- Case-insensitive matching for contains and pattern filters
+- Extension filter works without the dot (use "pdf" not ".pdf")
+
 ## [0.2.4] - 2025-09-27
 
 ### Added

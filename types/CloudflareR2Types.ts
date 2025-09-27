@@ -103,6 +103,7 @@ export interface R2ListOptions {
 	delimiter?: string;
 	max_keys?: number;
 	continuation_token?: string;
+	start_after?: string;
 }
 
 export interface R2DeleteOptions {

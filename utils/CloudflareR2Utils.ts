@@ -330,6 +330,9 @@ export class CloudflareR2Utils {
 		if (options.continuation_token) {
 			params.append('continuation-token', options.continuation_token);
 		}
+		if (options.start_after) {
+			params.append('start-after', options.start_after);
+		}
 
 		const hostname = `${credentials.accountId}.r2.cloudflarestorage.com`;
 		const path = `/${options.bucket}?${params.toString()}`;
