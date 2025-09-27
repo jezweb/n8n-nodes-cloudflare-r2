@@ -5,6 +5,28 @@ All notable changes to the n8n-nodes-cloudflare-r2 project will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-09-27
+
+### Fixed
+- 🐛 **List Objects Operation**: Implemented proper S3-compatible ListObjectsV2 API call
+  - Fixed issue where list objects was returning empty arrays
+  - Added XML response parsing using fast-xml-parser library
+  - Properly handles S3 ListObjectsV2 response structure
+  - Returns actual bucket contents with object metadata (key, size, last_modified, etag)
+  - Supports pagination via continuation tokens for large buckets
+  - Maintains all list parameters (prefix, delimiter, max-keys)
+
+### Added
+- 📦 Added `fast-xml-parser` dependency for parsing S3 XML responses
+
+## [0.2.2] - 2025-09-10
+
+### Fixed
+- 🐛 **Download Operation**: Fixed critical issue where download operation would fail with "undefined" error
+  - Corrected Buffer.from() to handle httpRequest arraybuffer response correctly
+  - Enhanced error messages with more context for debugging
+  - Download now works correctly in both workflows and as AI tool
+
 ## [0.2.0] - 2025-09-02
 
 ### Added

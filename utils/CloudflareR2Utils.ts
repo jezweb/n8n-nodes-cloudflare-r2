@@ -1,11 +1,12 @@
 import { IExecuteFunctions, IDataObject, IHttpRequestOptions, NodeOperationError } from 'n8n-workflow';
 import * as aws4 from 'aws4';
-import { 
-	R2ApiCredentials, 
-	R2ApiResponse, 
-	R2Bucket, 
-	R2Object, 
-	R2ListResponse, 
+import { XMLParser } from 'fast-xml-parser';
+import {
+	R2ApiCredentials,
+	R2ApiResponse,
+	R2Bucket,
+	R2Object,
+	R2ListResponse,
 	R2BucketListResponse,
 	R2UploadOptions,
 	R2DownloadOptions,
@@ -195,13 +196,14 @@ export class CloudflareR2Utils {
 			};
 
 			return {
-				data: Buffer.from(response.body),
+				data: Buffer.from(response),
 				metadata
 			};
 		} catch (error) {
 			throw new NodeOperationError(
 				executeFunctions.getNode(),
-				`Failed to download object from R2: ${error.message}`
+				`Failed to download object from R2: ${error.message}`,
+				{ description: `Error downloading object ${options.key} from bucket ${options.bucket}` }
 			);
 		}
 	}
@@ -309,26 +311,96 @@ export class CloudflareR2Utils {
 		executeFunctions: IExecuteFunctions,
 		options: R2ListOptions
 	): Promise<R2ListResponse> {
-		// TODO: Implement proper S3 list objects API call
-		// const credentials = await executeFunctions.getCredentials('cloudflareR2Api') as R2ApiCredentials;
-		
-		// const params = new URLSearchParams();
-		// if (options.prefix) params.append('prefix', options.prefix);
-		// if (options.delimiter) params.append('delimiter', options.delimiter);
-		// if (options.max_keys) params.append('max-keys', options.max_keys.toString());
-		// if (options.continuation_token) params.append('continuation-token', options.continuation_token);
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as any;
+
+		// Build query parameters for ListObjectsV2
+		const params = new URLSearchParams();
+		params.append('list-type', '2'); // Use ListObjectsV2
+
+		if (options.prefix) {
+			params.append('prefix', options.prefix);
+		}
+		if (options.delimiter) {
+			params.append('delimiter', options.delimiter);
+		}
+		if (options.max_keys) {
+			params.append('max-keys', options.max_keys.toString());
+		}
+		if (options.continuation_token) {
+			params.append('continuation-token', options.continuation_token);
+		}
+
+		const hostname = `${credentials.accountId}.r2.cloudflarestorage.com`;
+		const path = `/${options.bucket}?${params.toString()}`;
+
+		// Prepare request for AWS4 signing
+		const requestOptions = {
+			method: 'GET',
+			host: hostname,
+			path: path,
+			headers: {},
+			service: 's3',
+			region: 'auto',
+		};
+
+		// Sign the request
+		const signedRequest = aws4.sign(requestOptions, {
+			accessKeyId: credentials.accessKeyId,
+			secretAccessKey: credentials.secretAccessKey,
+		});
+
+		const listOptions: IHttpRequestOptions = {
+			method: 'GET',
+			url: `https://${hostname}${path}`,
+			headers: signedRequest.headers as IDataObject,
+			returnFullResponse: true,
+		};
 
 		try {
-			// Parse XML response (simplified - in production would use proper XML parser)
-			// For now, return mock structure - would need xml2js or similar for proper parsing
+			const response = await executeFunctions.helpers.httpRequest(listOptions);
+
+			// Parse XML response
+			const parser = new XMLParser({
+				ignoreAttributes: false,
+				parseTagValue: true,
+				trimValues: true,
+			});
+
+			const parsedResponse = parser.parse(response.body);
+			const listBucketResult = parsedResponse.ListBucketResult || {};
+
+			// Extract objects from the response
+			const contents = listBucketResult.Contents || [];
+			const objects: R2Object[] = [];
+
+			// Handle both single object and array of objects
+			const contentsArray = Array.isArray(contents) ? contents : (contents.Key ? [contents] : []);
+
+			for (const item of contentsArray) {
+				if (item.Key) {
+					objects.push({
+						key: item.Key,
+						size: parseInt(item.Size || '0', 10),
+						last_modified: item.LastModified || '',
+						etag: item.ETag ? item.ETag.replace(/"/g, '') : '',
+						storage_class: item.StorageClass || 'STANDARD',
+					});
+				}
+			}
+
+			// Check if response is truncated
+			const isTruncated = listBucketResult.IsTruncated === true || listBucketResult.IsTruncated === 'true';
+
 			return {
-				objects: [],
-				truncated: false
+				objects,
+				truncated: isTruncated,
+				continuation_token: listBucketResult.NextContinuationToken,
 			};
 		} catch (error) {
 			throw new NodeOperationError(
 				executeFunctions.getNode(),
-				`Failed to list objects: ${error.message}`
+				`Failed to list objects: ${error.message}`,
+				{ description: `Error listing objects in bucket ${options.bucket}` }
 			);
 		}
 	}
