@@ -801,7 +801,7 @@ async function executeObjectOperation(
 			return { success: true, message: `Object ${deleteKey} deleted` };
 
 		case 'list':
-			const listOptions = this.getNodeParameter('listOptions', itemIndex) as any;
+			const listOptions = this.getNodeParameter('listOptions', itemIndex, {}) as any;
 
 			// Build the prefix based on file extension if provided
 			let prefix = listOptions.prefix || '';

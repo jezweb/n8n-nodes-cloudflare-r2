@@ -5,6 +5,14 @@ All notable changes to the n8n-nodes-cloudflare-r2 project will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2025-09-28
+
+### Fixed
+- 🐛 **AI Tool Compatibility**: Fixed error when AI agents use list operation
+  - Added default empty object for `listOptions` parameter when not provided
+  - Prevents "Cannot read property 'prefix' of undefined" errors
+  - AI agents can now call list operation without specifying filters
+
 ## [0.2.5] - 2025-09-28
 
 ### Added
