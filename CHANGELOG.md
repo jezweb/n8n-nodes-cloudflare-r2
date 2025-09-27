@@ -5,6 +5,24 @@ All notable changes to the n8n-nodes-cloudflare-r2 project will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-09-28
+
+### Changed
+- 🔄 **BREAKING**: Split list and search into separate operations for better AI compatibility
+  - **List Operation**: Now focuses on prefix-based listing (fast, server-side)
+    - Removed client-side filtering options
+    - Ideal for browsing folders and getting all objects with a prefix
+  - **New Search Operation**: Dedicated operation for finding files
+    - Supports filename contains, file extension, and wildcard patterns
+    - Searches through up to 10,000 objects (configurable)
+    - Returns detailed search criteria in results
+
+### Why This Change?
+- AI agents were getting confused with overlapping search options
+- Clear separation: use 'list' for browsing, 'search' for finding specific files
+- Better performance: list operation is now pure server-side
+- More intuitive for both AI and human users
+
 ## [0.2.6] - 2025-09-28
 
 ### Fixed

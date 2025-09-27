@@ -12,12 +12,13 @@ export type R2BucketOperation =
 	| 'setCORS'
 	| 'deleteCORS';
 
-export type R2ObjectOperation = 
+export type R2ObjectOperation =
 	| 'upload'
 	| 'download'
 	| 'delete'
 	| 'get'
 	| 'list'
+	| 'search'
 	| 'copy'
 	| 'getMetadata'
 	| 'multipartCreate'

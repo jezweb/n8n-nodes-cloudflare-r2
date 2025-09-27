@@ -174,8 +174,14 @@ export class CloudflareR2 implements INodeType {
 					{
 						name: 'List',
 						value: 'list',
-						description: 'List objects in an R2 bucket',
+						description: 'List objects in an R2 bucket (by prefix/folder)',
 						action: 'List objects in bucket',
+					},
+					{
+						name: 'Search',
+						value: 'search',
+						description: 'Search for objects by name, extension, or pattern',
+						action: 'Search for objects in bucket',
 					},
 					{
 						name: 'Copy',
@@ -470,9 +476,9 @@ export class CloudflareR2 implements INodeType {
 				description: 'Custom metadata to attach to the object',
 			},
 
-			// LIST OPTIONS
+			// LIST OPTIONS (for prefix-based listing)
 			{
-				displayName: 'Options',
+				displayName: 'List Options',
 				name: 'listOptions',
 				type: 'collection',
 				displayOptions: {
@@ -482,38 +488,15 @@ export class CloudflareR2 implements INodeType {
 					},
 				},
 				default: {},
+				description: 'Options for listing objects by prefix',
 				options: [
 					{
 						displayName: 'Prefix',
 						name: 'prefix',
 						type: 'string',
 						default: '',
-						placeholder: 'e.g. documents/, report-2024-, invoice_',
-						description: 'Only list objects starting with this text. Use for folders (documents/) or filename prefixes (report-, IMG_)',
-					},
-					{
-						displayName: 'File Extension',
-						name: 'fileExtension',
-						type: 'string',
-						default: '',
-						placeholder: 'e.g. pdf, jpg, docx',
-						description: 'Filter by file extension (without dot). Leave empty for all files.',
-					},
-					{
-						displayName: 'Filename Contains',
-						name: 'contains',
-						type: 'string',
-						default: '',
-						placeholder: 'e.g. invoice, report, 2024',
-						description: 'Search for files containing this text anywhere in the filename',
-					},
-					{
-						displayName: 'Pattern',
-						name: 'pattern',
-						type: 'string',
-						default: '',
-						placeholder: 'e.g. *.pdf, invoice-*.docx, *-2024-*',
-						description: 'Wildcard pattern to match filenames. Use * for any characters.',
+						placeholder: 'e.g. documents/, images/2024/',
+						description: 'List only objects starting with this prefix. Use for browsing folders.',
 					},
 					{
 						displayName: 'Max Results',
@@ -541,6 +524,77 @@ export class CloudflareR2 implements INodeType {
 						default: '',
 						placeholder: '/',
 						description: 'Character to group keys. Use "/" to see folder structure.',
+					},
+				],
+			},
+
+			// SEARCH OPTIONS (for filtering)
+			{
+				displayName: 'Search Options',
+				name: 'searchOptions',
+				type: 'collection',
+				displayOptions: {
+					show: {
+						resource: ['object'],
+						operation: ['search'],
+					},
+				},
+				default: {},
+				description: 'Options for searching objects',
+				options: [
+					{
+						displayName: 'Filename Contains',
+						name: 'contains',
+						type: 'string',
+						default: '',
+						placeholder: 'e.g. invoice, report, 2024',
+						description: 'Search for files containing this text in the filename',
+					},
+					{
+						displayName: 'File Extension',
+						name: 'fileExtension',
+						type: 'string',
+						default: '',
+						placeholder: 'e.g. pdf, jpg, docx',
+						description: 'Filter by file extension (without dot)',
+					},
+					{
+						displayName: 'Pattern',
+						name: 'pattern',
+						type: 'string',
+						default: '',
+						placeholder: 'e.g. *.pdf, invoice-*.docx, *-2024-*',
+						description: 'Wildcard pattern to match filenames (* = any characters)',
+					},
+					{
+						displayName: 'Search In Prefix',
+						name: 'prefix',
+						type: 'string',
+						default: '',
+						placeholder: 'e.g. documents/, images/',
+						description: 'Limit search to objects with this prefix (optional)',
+					},
+					{
+						displayName: 'Max Results to Search',
+						name: 'maxSearchKeys',
+						type: 'number',
+						typeOptions: {
+							minValue: 100,
+							maxValue: 10000,
+						},
+						default: 5000,
+						description: 'Maximum objects to search through (100-10000)',
+					},
+					{
+						displayName: 'Max Results to Return',
+						name: 'maxResults',
+						type: 'number',
+						typeOptions: {
+							minValue: 1,
+							maxValue: 1000,
+						},
+						default: 100,
+						description: 'Maximum matching results to return (1-1000)',
 					},
 				],
 			},
@@ -803,50 +857,61 @@ async function executeObjectOperation(
 		case 'list':
 			const listOptions = this.getNodeParameter('listOptions', itemIndex, {}) as any;
 
-			// Build the prefix based on file extension if provided
-			let prefix = listOptions.prefix || '';
-
-			// Handle file extension filter by adjusting prefix if it's a simple case
-			// (This won't work perfectly for all cases but helps with simple searches)
-			if (listOptions.fileExtension && !prefix && !listOptions.pattern && !listOptions.contains) {
-				// If only extension is specified, we can't effectively use prefix
-				// Will filter client-side instead
-			}
-
 			const r2ListOptions: R2ListOptions = {
 				bucket: bucketName,
-				prefix: prefix,
+				prefix: listOptions.prefix || '',
 				max_keys: listOptions.maxKeys || 1000,
 				delimiter: listOptions.delimiter,
 				start_after: listOptions.startAfter,
 			};
 
-			let listResult = await CloudflareR2Utils.listObjects(this, r2ListOptions);
+			const listResult = await CloudflareR2Utils.listObjects(this, r2ListOptions);
 
-			// Apply client-side filters
-			if (listOptions.fileExtension || listOptions.contains || listOptions.pattern) {
-				const filteredObjects = listResult.objects.filter((obj: any) => {
+			return {
+				objects: listResult.objects,
+				truncated: listResult.truncated,
+				continuation_token: listResult.continuation_token,
+				results_count: listResult.objects.length
+			};
+
+		case 'search':
+			const searchOptions = this.getNodeParameter('searchOptions', itemIndex, {}) as any;
+
+			// Fetch objects to search through
+			const searchListOptions: R2ListOptions = {
+				bucket: bucketName,
+				prefix: searchOptions.prefix || '',
+				max_keys: searchOptions.maxSearchKeys || 5000,
+			};
+
+			const searchResult = await CloudflareR2Utils.listObjects(this, searchListOptions);
+
+			// Apply filters
+			let filteredObjects = searchResult.objects;
+
+			if (searchOptions.contains || searchOptions.fileExtension || searchOptions.pattern) {
+				filteredObjects = searchResult.objects.filter((obj: any) => {
 					const key = obj.key || '';
 					const filename = key.split('/').pop() || key;
 
+					// Filter by contains
+					if (searchOptions.contains) {
+						if (!filename.toLowerCase().includes(searchOptions.contains.toLowerCase())) {
+							return false;
+						}
+					}
+
 					// Filter by file extension
-					if (listOptions.fileExtension) {
-						const ext = '.' + listOptions.fileExtension.toLowerCase().replace('.', '');
+					if (searchOptions.fileExtension) {
+						const ext = '.' + searchOptions.fileExtension.toLowerCase().replace('.', '');
 						if (!filename.toLowerCase().endsWith(ext)) {
 							return false;
 						}
 					}
 
-					// Filter by contains
-					if (listOptions.contains) {
-						if (!filename.toLowerCase().includes(listOptions.contains.toLowerCase())) {
-							return false;
-						}
-					}
-
 					// Filter by pattern (simple wildcard support)
-					if (listOptions.pattern) {
-						const pattern = listOptions.pattern
+					if (searchOptions.pattern) {
+						const pattern = searchOptions.pattern
 							.replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex chars except *
 							.replace(/\*/g, '.*'); // Convert * to .*
 						const regex = new RegExp('^' + pattern + '$', 'i');
@@ -857,15 +922,24 @@ async function executeObjectOperation(
 
 					return true;
 				});
+			}
 
-				listResult.objects = filteredObjects;
+			// Limit results to maxResults
+			if (searchOptions.maxResults) {
+				filteredObjects = filteredObjects.slice(0, searchOptions.maxResults);
 			}
 
 			return {
-				objects: listResult.objects,
-				truncated: listResult.truncated,
-				continuation_token: listResult.continuation_token,
-				results_count: listResult.objects.length
+				objects: filteredObjects,
+				truncated: searchResult.truncated,
+				search_criteria: {
+					contains: searchOptions.contains || null,
+					fileExtension: searchOptions.fileExtension || null,
+					pattern: searchOptions.pattern || null,
+					prefix: searchOptions.prefix || null
+				},
+				total_searched: searchResult.objects.length,
+				results_count: filteredObjects.length
 			};
 
 		case 'getMetadata':
