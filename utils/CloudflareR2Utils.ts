@@ -12,7 +12,8 @@ import {
 	R2DownloadOptions,
 	R2ListOptions,
 	R2DeleteOptions,
-	R2CORSConfiguration
+	R2CORSConfiguration,
+	R2CopyOptions
 } from '../types/CloudflareR2Types';
 
 export class CloudflareR2Utils {
@@ -401,6 +402,152 @@ export class CloudflareR2Utils {
 				executeFunctions.getNode(),
 				`Failed to list objects: ${error.message}`,
 				{ description: `Error listing objects in bucket ${options.bucket}` }
+			);
+		}
+	}
+
+	/**
+	 * Get object metadata without downloading the content
+	 */
+	static async getObjectMetadata(
+		executeFunctions: IExecuteFunctions,
+		options: { key: string; bucket: string }
+	): Promise<R2Object> {
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as any;
+
+		const hostname = `${credentials.accountId}.r2.cloudflarestorage.com`;
+		const path = `/${options.bucket}/${options.key}`;
+
+		// Prepare request for AWS4 signing
+		const requestOptions = {
+			method: 'HEAD',
+			host: hostname,
+			path: path,
+			headers: {},
+			service: 's3',
+			region: 'auto',
+		};
+
+		// Sign the request
+		const signedRequest = aws4.sign(requestOptions, {
+			accessKeyId: credentials.accessKeyId,
+			secretAccessKey: credentials.secretAccessKey,
+		});
+
+		const headOptions: IHttpRequestOptions = {
+			method: 'HEAD',
+			url: `https://${hostname}${path}`,
+			headers: signedRequest.headers as IDataObject,
+			returnFullResponse: true,
+		};
+
+		try {
+			const response = await executeFunctions.helpers.httpRequest(headOptions);
+			const headers = response.headers;
+
+			// Extract metadata from headers
+			const customMetadata: { [key: string]: string } = {};
+			Object.keys(headers).forEach(key => {
+				if (key.toLowerCase().startsWith('x-amz-meta-')) {
+					const metaKey = key.substring(11); // Remove 'x-amz-meta-' prefix
+					customMetadata[metaKey] = headers[key] as string;
+				}
+			});
+
+			return {
+				key: options.key,
+				size: parseInt(headers['content-length'] as string || '0', 10),
+				last_modified: headers['last-modified'] as string || '',
+				etag: (headers['etag'] as string || '').replace(/"/g, ''),
+				content_type: headers['content-type'] as string || 'application/octet-stream',
+				storage_class: headers['x-amz-storage-class'] as string || 'STANDARD',
+				metadata: Object.keys(customMetadata).length > 0 ? customMetadata : undefined,
+			};
+		} catch (error) {
+			throw new NodeOperationError(
+				executeFunctions.getNode(),
+				`Failed to get object metadata: ${error.message}`,
+				{ description: `Error getting metadata for ${options.key} from bucket ${options.bucket}` }
+			);
+		}
+	}
+
+	/**
+	 * Copy object within or between buckets
+	 */
+	static async copyObject(
+		executeFunctions: IExecuteFunctions,
+		options: R2CopyOptions
+	): Promise<R2Object> {
+		const credentials = await executeFunctions.getCredentials('cloudflareR2StorageApi') as any;
+
+		const hostname = `${credentials.accountId}.r2.cloudflarestorage.com`;
+		const path = `/${options.destination_bucket}/${options.destination_key}`;
+
+		// Prepare headers
+		const headers: { [key: string]: string } = {
+			'x-amz-copy-source': `/${options.source_bucket}/${options.source_key}`,
+		};
+
+		if (options.metadata_directive) {
+			headers['x-amz-metadata-directive'] = options.metadata_directive;
+		}
+
+		// Add custom metadata if replacing
+		if (options.metadata && options.metadata_directive === 'REPLACE') {
+			Object.keys(options.metadata).forEach(key => {
+				headers[`x-amz-meta-${key}`] = options.metadata![key];
+			});
+		}
+
+		// Prepare request for AWS4 signing
+		const requestOptions = {
+			method: 'PUT',
+			host: hostname,
+			path: path,
+			headers: headers,
+			service: 's3',
+			region: 'auto',
+		};
+
+		// Sign the request
+		const signedRequest = aws4.sign(requestOptions, {
+			accessKeyId: credentials.accessKeyId,
+			secretAccessKey: credentials.secretAccessKey,
+		});
+
+		const copyOptions: IHttpRequestOptions = {
+			method: 'PUT',
+			url: `https://${hostname}${path}`,
+			headers: signedRequest.headers as IDataObject,
+			returnFullResponse: true,
+		};
+
+		try {
+			const response = await executeFunctions.helpers.httpRequest(copyOptions);
+
+			// Parse XML response
+			const parser = new XMLParser({
+				ignoreAttributes: false,
+				parseTagValue: true,
+				trimValues: true,
+			});
+
+			const parsedResponse = parser.parse(response.body);
+			const copyResult = parsedResponse.CopyObjectResult || {};
+
+			return {
+				key: options.destination_key,
+				size: 0, // Size is not returned in CopyObject response, would need separate HEAD request
+				last_modified: copyResult.LastModified || new Date().toISOString(),
+				etag: copyResult.ETag ? copyResult.ETag.replace(/"/g, '') : '',
+				metadata: options.metadata,
+			};
+		} catch (error) {
+			throw new NodeOperationError(
+				executeFunctions.getNode(),
+				`Failed to copy object: ${error.message}`,
+				{ description: `Error copying from ${options.source_bucket}/${options.source_key} to ${options.destination_bucket}/${options.destination_key}` }
 			);
 		}
 	}

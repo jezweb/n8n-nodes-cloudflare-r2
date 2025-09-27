@@ -779,23 +779,33 @@ async function executeObjectOperation(
 			return { objects: listResult.objects, truncated: listResult.truncated };
 
 		case 'getMetadata':
-			// This would require a HEAD request to get just metadata
 			const metadataKey = this.getNodeParameter('objectKey', itemIndex) as string;
-			// For now, return a placeholder - would need HEAD request implementation
-			return { 
+			const metadata = await CloudflareR2Utils.getObjectMetadata(this, {
 				key: metadataKey,
-				message: 'Metadata retrieval not fully implemented yet'
+				bucket: bucketName
+			});
+			return {
+				success: true,
+				object: metadata
 			};
 
 		case 'copy':
-			// Copy operation would require implementing S3 COPY command
 			const sourceBucket = this.getNodeParameter('sourceBucket', itemIndex) as string || bucketName;
 			const sourceKey = this.getNodeParameter('sourceKey', itemIndex) as string;
 			const destinationKey = this.getNodeParameter('destinationKey', itemIndex) as string;
-			
-			return { 
-				success: true, 
-				message: `Copy from ${sourceBucket}/${sourceKey} to ${bucketName}/${destinationKey} (not fully implemented)`
+
+			const copyResult = await CloudflareR2Utils.copyObject(this, {
+				source_bucket: sourceBucket,
+				source_key: sourceKey,
+				destination_bucket: bucketName,
+				destination_key: destinationKey,
+				metadata_directive: 'COPY' // Default to copying metadata
+			});
+
+			return {
+				success: true,
+				object: copyResult,
+				message: `Successfully copied from ${sourceBucket}/${sourceKey} to ${bucketName}/${destinationKey}`
 			};
 
 		default:
@@ -963,7 +973,7 @@ async function executeBatchOperation(
 		case 'deleteMultiple':
 			const deleteKeys = this.getNodeParameter('objectKeys', itemIndex) as string;
 			const keysToDelete = deleteKeys.split('\n').map(k => k.trim()).filter(k => k);
-			
+
 			if (keysToDelete.length > 1000) {
 				throw new NodeOperationError(this.getNode(), 'Cannot delete more than 1000 objects at once');
 			}
@@ -972,10 +982,114 @@ async function executeBatchOperation(
 			return [{ success: true, deletedCount: keysToDelete.length }];
 
 		case 'uploadMultiple':
+			// Get all binary properties from the input
+			const items = this.getInputData();
+			const item = items[itemIndex];
+
+			if (!item.binary) {
+				throw new NodeOperationError(this.getNode(), 'No binary data found. Please ensure binary data is passed from the previous node.');
+			}
+
+			const uploadPromises: Promise<IDataObject>[] = [];
+
+			for (const binaryPropertyName of Object.keys(item.binary)) {
+				const binaryData = item.binary[binaryPropertyName];
+				const fileName = binaryData.fileName || binaryPropertyName;
+
+				// Create upload promise
+				const uploadPromise = (async () => {
+					try {
+						const data = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
+
+						const uploadOptions: R2UploadOptions = {
+							key: fileName,
+							bucket: bucketName,
+							content_type: binaryData.mimeType || 'application/octet-stream',
+						};
+
+						const result = await CloudflareR2Utils.uploadObject(this, uploadOptions, data);
+
+						return {
+							success: true,
+							file: fileName,
+							object: result
+						};
+					} catch (error) {
+						if (this.continueOnFail()) {
+							return {
+								success: false,
+								file: fileName,
+								error: error.message
+							};
+						}
+						throw error;
+					}
+				})();
+
+				uploadPromises.push(uploadPromise);
+			}
+
+			// Execute all uploads in parallel
+			const uploadResults = await Promise.all(uploadPromises);
+			return uploadResults;
+
 		case 'downloadMultiple':
-			return [{ 
-				success: false, 
-				message: `Batch operation ${operation} not yet implemented` 
+			const downloadKeys = this.getNodeParameter('objectKeys', itemIndex) as string;
+			const keysToDownload = downloadKeys.split('\n').map(k => k.trim()).filter(k => k);
+
+			if (keysToDownload.length > 100) {
+				throw new NodeOperationError(this.getNode(), 'Cannot download more than 100 objects at once to prevent memory issues');
+			}
+
+			const downloadPromises: Promise<IDataObject>[] = [];
+			const binaryProperties: { [key: string]: IBinaryData } = {};
+
+			for (const key of keysToDownload) {
+				const downloadPromise = (async () => {
+					try {
+						const downloadOptions: R2DownloadOptions = {
+							key: key,
+							bucket: bucketName,
+						};
+
+						const result = await CloudflareR2Utils.downloadObject(this, downloadOptions);
+						const propertyName = key.replace(/[^a-zA-Z0-9_]/g, '_'); // Sanitize for property name
+
+						binaryProperties[propertyName] = {
+							data: result.data.toString('base64'),
+							mimeType: result.metadata.content_type || 'application/octet-stream',
+							fileName: key.split('/').pop() || key,
+							fileSize: result.data.length.toString(),
+						};
+
+						return {
+							success: true,
+							file: key,
+							size: result.data.length,
+							metadata: result.metadata
+						};
+					} catch (error) {
+						if (this.continueOnFail()) {
+							return {
+								success: false,
+								file: key,
+								error: error.message
+							};
+						}
+						throw error;
+					}
+				})();
+
+				downloadPromises.push(downloadPromise);
+			}
+
+			// Execute all downloads in parallel
+			const downloadResults = await Promise.all(downloadPromises);
+
+			// Return results with binary data attached
+			return [{
+				downloads: downloadResults,
+				binary: binaryProperties
 			}];
 
 		default:

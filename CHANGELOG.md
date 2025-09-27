@@ -5,6 +5,37 @@ All notable changes to the n8n-nodes-cloudflare-r2 project will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2025-09-27
+
+### Added
+- ✨ **Get Metadata Operation**: Fully implemented object metadata retrieval
+  - Uses S3 HEAD request to get metadata without downloading content
+  - Returns size, last_modified, etag, content_type, storage_class, and custom metadata
+  - Efficient operation for checking object existence and properties
+
+- ✨ **Copy Object Operation**: Fully implemented object copying
+  - Supports copying within same bucket or between buckets
+  - Uses S3 CopyObject API with proper source/destination handling
+  - Preserves or replaces metadata based on directive
+  - Returns copy operation results with new object metadata
+
+- ✨ **Upload Multiple Operation**: Batch upload functionality
+  - Processes all binary properties from input data
+  - Uploads multiple files in parallel for better performance
+  - Individual error handling with continueOnFail support
+  - Returns success/failure status for each uploaded file
+
+- ✨ **Download Multiple Operation**: Batch download functionality
+  - Downloads multiple files specified by object keys (max 100)
+  - Creates separate binary properties for each downloaded file
+  - Parallel downloads for improved performance
+  - Graceful error handling for missing files
+
+### Fixed
+- 🔧 Replaced placeholder implementations with fully functional code
+- 🔧 All operations now properly use AWS4 signing for authentication
+- 🔧 Improved error messages with detailed context
+
 ## [0.2.3] - 2025-09-27
 
 ### Fixed
